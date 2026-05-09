@@ -339,7 +339,7 @@ SmartC supports a C-like preprocessor:
 #pragma optimizationLevel 3
 #pragma version      2.1
 #pragma verboseAssembly
-#pragma globalOptimization
+#pragma reuseAssignedVar
 ```
 
 ---
@@ -350,15 +350,25 @@ Every AT instruction costs **0.001 Signa** at runtime. The activation amount
 must cover the worst-case execution path. Fewer instructions = lower activation
 threshold = cheaper contract for users.
 
-### Always set optimizationLevel 3
+### Pick the optimization level by measurement, not by default
 
 ```c
-#pragma optimizationLevel 3   // VM-trace optimizer — removes redundant API calls
+#pragma optimizationLevel 3   // VM-trace optimizer — usually smallest, but verify
 ```
 
 Level 2 is the compiler default (safe optimizer). Level 3 adds VM-trace analysis
-that eliminates redundant instructions the safe pass misses. It is marked beta but
-reliable in practice — always set it.
+that eliminates redundant instructions the safe pass misses. **It is not strictly
+better than level 2** — for some contracts level 3 produces *larger* code than
+level 2, occasionally enough to push past the 10240-byte deployment cap. Always
+verify with the comparison script:
+
+```bash
+bun scripts/compare-optimization.js mycontract.smart.c
+```
+
+The script compiles at every level (0/1/2/3), prints a table of byte counts and
+instruction counts, flags any non-monotonic results, and recommends the smallest
+deployable configuration.
 
 ### Use `const` for frequently-used numbers
 

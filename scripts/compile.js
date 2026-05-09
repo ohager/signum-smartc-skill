@@ -81,30 +81,39 @@ if (flags.verbose) {
 // ─── Machine code / deployment summary ───────────────────────────────────────
 
 const {
-    MachineCode,
-    MachineData,
+    ByteCode,
+    ByteData,
     DataPages,
     CodeStackPages,
     UserStackPages,
-    activationAmount,
-    codeHashId,
-    ProgramHashId,
-    name,
-    description,
+    CodePages,
+    PActivationAmount,
+    MachineCodeHashId,
+    MinimumFeeNQT,
+    PName,
+    PDescription,
+    Warnings: compilerWarnings,
 } = machineObject;
 
-const codeHex   = MachineCode ?? '';
+const codeHex   = ByteCode ?? '';
 const codeBytes = codeHex.length / 2;
 
+// PActivationAmount is a string. SmartC stores it in NQT (1 Signa = 1e8 NQT)
+// regardless of whether the source wrote `0.5` or `50000000`.
+const activationSigna = PActivationAmount
+    ? (Number(PActivationAmount) / 1e8).toFixed(4) + ' Signa'
+    : 'not set';
+
 console.log('─── Deployment Summary ───────────────────────────────');
-console.log(`  Name            : ${name ?? '(none)'}`);
-console.log(`  Description     : ${description ? description.slice(0, 60) : '(none)'}`);
-console.log(`  Activation Amt  : ${activationAmount ? (activationAmount / 1e8).toFixed(4) + ' Signa' : 'not set'}`);
-console.log(`  Code Hash ID    : ${codeHashId != null ? codeHashId : '(not set — add after deploy)'}`);
-console.log(`  Program Hash    : ${ProgramHashId ?? '(computed at deploy)'}`);
+console.log(`  Name            : ${PName || '(none)'}`);
+console.log(`  Description     : ${PDescription ? PDescription.slice(0, 60) : '(none)'}`);
+console.log(`  Activation Amt  : ${activationSigna}`);
+console.log(`  Machine Hash ID : ${MachineCodeHashId || '(not computed)'}`);
+console.log(`  Min. Deploy Fee : ${MinimumFeeNQT ? (Number(MinimumFeeNQT) / 1e8).toFixed(4) + ' Signa' : '(unknown)'}`);
 console.log('');
 console.log('  Pages:');
 console.log(`    Data          : ${DataPages}`);
+console.log(`    Code          : ${CodePages}`);
 console.log(`    Code Stack    : ${CodeStackPages}`);
 console.log(`    User Stack    : ${UserStackPages}`);
 console.log('');
@@ -120,10 +129,10 @@ for (let i = 0; i < codeHex.length; i += 64) {
 }
 console.log('');
 
-if (MachineData?.length > 0) {
+if (ByteData?.length > 0) {
     console.log('─── Initial Data (hex) ───────────────────────────────');
-    for (let i = 0; i < MachineData.length; i += 64) {
-        console.log('  ' + MachineData.slice(i, i + 64));
+    for (let i = 0; i < ByteData.length; i += 64) {
+        console.log('  ' + ByteData.slice(i, i + 64));
     }
     console.log('');
 }
@@ -133,15 +142,19 @@ if (MachineData?.length > 0) {
 if (flags.json) {
     const outputPath = `${contractName}.compiled.json`;
     await Bun.write(outputPath, JSON.stringify({
-        name,
-        description,
-        activationAmount,
-        codeHashId,
+        PName,
+        PDescription,
+        PActivationAmount,
+        MachineCodeHashId,
+        MinimumFeeNQT,
         DataPages,
+        CodePages,
         CodeStackPages,
         UserStackPages,
-        MachineCode,
-        MachineData,
+        ByteCode,
+        ByteData,
+        // Back-compat alias so decompile.js's --json input keeps working
+        MachineCode: ByteCode,
         ...(flags.verbose ? { assembly: assemblyCode } : {}),
     }, null, 2));
     console.log(`JSON output written to: ${outputPath}`);
@@ -153,10 +166,10 @@ console.log('─── ✓ Compilation successful ──────────
 
 const warnings = [];
 
-if (!activationAmount) {
+if (!PActivationAmount || PActivationAmount === '0') {
     warnings.push('⚠️  activationAmount not set — contract will be unactivatable');
 }
-if (!name) {
+if (!PName) {
     warnings.push('⚠️  #program name not set — contract will show as unnamed on explorer');
 }
 if (!assemblyCode.includes('getNextTx') && !assemblyCode.includes('GET_NEXT_TX')) {
@@ -170,6 +183,9 @@ if (DataPages > 4) {
 }
 if (!assemblyCode.includes('verboseAssembly') && flags.verbose) {
     warnings.push('ℹ️  Add #pragma verboseAssembly to the source to annotate assembly with line numbers');
+}
+if (compilerWarnings && compilerWarnings.trim().length > 0) {
+    warnings.push(`ℹ️  Compiler warnings: ${compilerWarnings.trim()}`);
 }
 
 if (warnings.length > 0) {
