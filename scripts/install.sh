@@ -15,9 +15,8 @@ echo ""
 # ── 1. Install skill into Claude Code ────────────────────────────────────────
 
 if [ ! -d "${SKILLS_DIR}" ]; then
-    echo "✗  Claude Code skills directory not found at ${SKILLS_DIR}"
-    echo "   Make sure Claude Code is installed before running this script."
-    exit 1
+    mkdir -p "${SKILLS_DIR}"
+    echo "✓  Created skills directory at ${SKILLS_DIR}"
 fi
 
 if [ -L "${SKILL_LINK}" ]; then
