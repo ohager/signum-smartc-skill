@@ -346,9 +346,16 @@ SmartC supports a C-like preprocessor:
 
 ## Gas Optimization
 
-Every AT instruction costs **0.001 Signa** at runtime. The activation amount
-must cover the worst-case execution path. Fewer instructions = lower activation
-threshold = cheaper contract for users.
+Execution is charged per **step** at **0.001 Signa/step**. An ordinary opcode costs
+1 step, but every built-in API call (the `EXT_FUN*` family — `getNextTx`,
+`getSender`, `readMessage`, `sendAmount`, all map/asset ops, …) costs **10 steps**
+(0.01 Signa). The activation amount must cover the worst-case path, so fewer steps —
+and especially fewer API calls — mean a lower activation threshold and a cheaper
+contract for users. There is a hard ceiling of **100 000 steps (100 Signa) per
+activation**; the VM stops before exceeding it.
+
+The `scripts/gas-analysis.js` tool computes the min/max steps and Signa for every
+handler automatically using this exact fee model — prefer it over manual counting.
 
 ### Pick the optimization level by measurement, not by default
 
@@ -473,11 +480,23 @@ if (count == someVar) { ... }  // longer — avoid in hot loops if possible
 
 ### Estimating gas for a specific execution path
 
-Every AT instruction costs exactly **0.001 Signa**. `activationAmount` must cover
-the worst-case execution path — if it falls short, the contract freezes mid-execution
-and resumes on the next incoming transaction (potentially in an inconsistent state).
+Cost is charged per **step**: an ordinary opcode is 1 step, an API call is 10 steps,
+and each step is **0.001 Signa**. `activationAmount` must cover the worst-case path —
+if it falls short, the contract freezes mid-execution and resumes on the next incoming
+transaction (potentially in an inconsistent state).
 
-**Step-by-step:**
+**Preferred — let the tool do it:**
+
+```bash
+bun scripts/gas-analysis.js mycontract.smart.c
+```
+
+It builds a control-flow graph from the compiled assembly and reports the min/max
+steps and Signa per handler (including a per-method dispatch + handler total), charging
+API calls at 10 steps and bounding data-dependent loops. See the **Gas Analysis
+Script** section of `SKILL.md`.
+
+**Manual method (when you need to reason about a single path):**
 
 1. **Compile with `verboseAssembly`:**
    ```c
@@ -486,35 +505,39 @@ and resumes on the next incoming transaction (potentially in an inconsistent sta
    The compiler annotates every generated instruction with its source line:
    ```asm
    ^comment: line 42: currentTx.sender = getSender(currentTx.txId);
-   EXT_FUN_RET_DAT_2 GET_ACCOUNT_OF_TX_IN_A  ; ← 1 instruction
+   EXT_FUN_RET_DAT_2 GET_ACCOUNT_OF_TX_IN_A  ; ← 1 API call = 10 steps
    ```
-   Each non-comment, non-label line in the output is one AT instruction = 0.001 Signa.
+   Each non-comment, non-label line is one AT instruction. Ordinary opcodes are 1 step
+   (0.001 Signa); every `EXT_FUN*` line (an API call — in short assembly the `FUN`
+   mnemonic) is **10 steps** (0.01 Signa). `issueAsset` and `distributeToHolders` cost
+   more still and are partly data-dependent.
 
-2. **Identify the worst-case path** — the code path that executes the most instructions.
+2. **Identify the worst-case path** — the code path that executes the most steps.
    For a typical contract this is the branch that reads a message, validates it, writes
    multiple map values, and sends a response. The `getNextTx()` loop body runs once per
    tx, so a batch of N transactions multiplies that cost by N.
 
-3. **Count instructions on that path** — trace through the assembly output and count
-   every instruction that executes on the path. Loop iterations count once each.
+3. **Sum the steps on that path** — trace the assembly, adding 1 per ordinary opcode
+   and 10 per API call. Loop iterations count once each.
 
 4. **Calculate and set `activationAmount`:**
    ```
-   activationAmount = instruction_count × 0.001 Signa  +  safety margin (10–20%)
+   activationAmount = step_count × 0.001 Signa  +  safety margin (10–20%)
    ```
    Round up to a clean value. The compile script outputs an estimate in its deployment
-   summary — use it as a floor and verify against the worst-case path manually.
+   summary — use it as a floor and verify against the worst-case path.
 
-**What costs instructions:**
+**What costs steps:**
 
 | Operation | Approximate cost |
 |---|---|
-| Simple assignment / arithmetic | 1–2 instructions |
-| Comparison + branch | 2–3 instructions |
-| High-level API call (e.g. `getNextTx`, `setMapValue`) | 1 instruction (single opcode wrapper) |
-| Function call with N arguments | 2 + 2×N instructions (call/return + push/pop per arg) |
+| Simple assignment / arithmetic | 1–2 steps |
+| Comparison + branch | 2–3 steps |
+| High-level API call (e.g. `getNextTx`, `setMapValue`) | **10 steps** (1 opcode × 10 API multiplier) |
+| `issueAsset` / `distributeToHolders` | 10+ steps, partly data-dependent (holder count) |
+| Function call with N arguments | 2 + 2×N steps (call/return + push/pop per arg) |
 | `inline` function | 0 overhead — body inserted at call site |
-| `getCreator()` called twice | 2 instructions — cache it to save 1 |
+| `getCreator()` called twice | 20 steps — cache it to save 10 |
 
 **Frozen contract warning:** if the contract freezes mid-loop because gas runs out,
 it resumes at the exact instruction where it stopped. This can cause a tx to be
