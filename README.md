@@ -30,6 +30,18 @@ When active, this skill gives Claude deep context about:
 
 This skill requires [Claude Code](https://claude.ai/code).
 
+### Quick install (one-liner)
+
+```bash
+git clone https://github.com/ohager/signum-smartc-skill.git ~/signum-smartc-skill && bash ~/signum-smartc-skill/scripts/install.sh
+```
+
+This clones the repo to `~/signum-smartc-skill` and runs the installer. The
+checkout must stay in place — the skill is symlinked into `~/.claude/skills`
+from there. Then **restart Claude Code**.
+
+### Step by step
+
 1. **Clone** this repository anywhere on your machine:
    ```bash
    git clone https://github.com/ohager/signum-smartc-skill
