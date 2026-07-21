@@ -8,11 +8,12 @@
  * its full per-invocation cost.
  *
  * Scope (by design):
- *   - The outer getNextTx() transaction loop is IGNORED. Activation cost is
- *     charged per invocation, and one invocation processes one transaction, so
- *     the meaningful figure is the cost of a single handler pass. The fixed
- *     getNextTx loop-header overhead (a handful of instructions per activation)
- *     sits outside the reported per-method dispatch cost.
+ *   - There is no multi-tx activation: each transaction is its own single run
+ *     through the getNextTx() loop and carries its own activationAmount, so the
+ *     outer loop is never multiplied and cost is charged per invocation (one tx).
+ *   - main()'s post-loop effects (trailing statements after the while loop) run
+ *     once per activation and are reported as a separate Post-loop cost; the
+ *     worst-case activation is `worst single-tx handler + post-loop`.
  *   - Data-dependent inner loops are bounded: MAX assumes each runs at most N
  *     iterations (default 10). MIN is the shortest path.
  *   - Subroutine calls (JSR) are inlined; recursion / sleep are flagged.
@@ -48,7 +49,9 @@ handler = full per-invocation cost).
 
 Options:
   --loop-cap N   Assume each data-dependent inner loop runs at most N times
-                 (default ${DEFAULT_LOOP_CAP}). The outer getNextTx() loop is always ignored.
+                 (default ${DEFAULT_LOOP_CAP}). The outer getNextTx() loop is never multiplied
+                 (each tx is its own single run); main()'s post-loop effects are
+                 reported separately.
   --json         Write full results to <contract>.gas.json
 `);
     process.exit(0);
@@ -80,30 +83,29 @@ console.log(`╚═════════════════════�
 console.log(`  Total AT instructions: ${result.totalInstructions}   (loop cap N=${loopCap}, ${SIGNA_PER_STEP} SIGNA/step; API call = 10 steps)\n`);
 
 const rowFlag = (r) => r.capHit ? ' ⚠loop-cap' : r.variableApi ? ' ⚠asset-op' : r.suspend ? ' ⚠sleep' : '';
+const one = (r) => (r.oneRunSigna ?? r.minSigna); // single-pass estimate (loops ×1)
 
 if (result.methods.length > 0) {
-    console.log('  Per method (dispatch + handler = full per-invocation cost)');
-    console.log('  Code  Handler          Dispatch  Min steps  Max steps   Min SIGNA   Max SIGNA');
-    console.log('  ────  ───────────────  ────────  ─────────  ─────────   ─────────   ─────────');
+    console.log('  Per method — SIGNA per invocation (per-tx preamble + dispatch + handler)');
+    console.log('  Code  Handler                 Min     1×loop        Max');
+    console.log('  ────  ───────────────────  ───────   ───────   ────────');
     for (const m of result.methods) {
         const code = (m.code ?? '?').toString().padStart(4);
-        const handler = (m.handler ?? '(inline)').padEnd(15);
+        const handler = (m.handler ?? '(inline)').padEnd(19);
         console.log(
-            `  ${code}  ${handler}  ${String(m.dispatchSteps).padStart(8)}  ${String(m.minSteps).padStart(9)}  ${String(m.maxSteps).padStart(9)}` +
-            `   ${fmt(m.minSigna)}   ${fmt(m.maxSigna)}${rowFlag(m)}`
+            `  ${code}  ${handler}  ${fmt(m.minSigna)}  ${fmt(one(m))}  ${fmt(m.maxSigna)}${rowFlag(m)}`
         );
     }
     console.log('');
 }
 
 if (result.handlers.length > 0) {
-    console.log('  Handler bodies (function cost only, sub-calls inlined)');
-    console.log('  Handler              Min steps  Max steps   Min SIGNA   Max SIGNA');
-    console.log('  ───────────────────  ─────────  ─────────   ─────────   ─────────');
+    console.log('  Handler bodies — SIGNA (function only, sub-calls inlined)');
+    console.log('  Handler                     Min     1×loop        Max');
+    console.log('  ───────────────────────  ───────   ───────   ────────');
     for (const h of result.handlers) {
         console.log(
-            `  ${h.name.padEnd(19)}  ${String(h.minSteps).padStart(9)}  ${String(h.maxSteps).padStart(9)}` +
-            `   ${fmt(h.minSigna)}   ${fmt(h.maxSigna)}${rowFlag(h)}`
+            `  ${h.name.padEnd(21)}  ${fmt(h.minSigna)}  ${fmt(one(h))}  ${fmt(h.maxSigna)}${rowFlag(h)}`
         );
     }
     console.log('');
@@ -111,11 +113,33 @@ if (result.handlers.length > 0) {
     console.log('  No handler functions (__fn_*) or switch dispatch found — logic may be inline in main().\n');
 }
 
+if (result.postLoop) {
+    const p = result.postLoop;
+    console.log('  Post-loop — SIGNA (runs once per activation, after the tx loop drains)');
+    console.log('  effects/publish            Min     1×loop        Max');
+    console.log('  ───────────────────────  ───────   ───────   ────────');
+    console.log(`  ${'(trailing effects)'.padEnd(21)}  ${fmt(p.minSigna)}  ${fmt(one(p))}  ${fmt(p.maxSigna)}${rowFlag(p)}`);
+    console.log('');
+}
+
+console.log('─── How to read these numbers ────────────────────────');
+console.log('  These are STATIC ESTIMATES from the compiled assembly, not measured');
+console.log('  runs — treat them as guidance and validate against the testbed.');
+console.log(`  • Min    — shortest path; data-dependent loops skipped (0 iterations).`);
+console.log(`  • 1×loop — each data-dependent loop runs once; closest to a typical run`);
+console.log(`             and to empirical/TDD figures.`);
+console.log(`  • Max    — every such loop runs the full --loop-cap (=${loopCap}) times on the`);
+console.log(`             most expensive branch. A conservative UPPER BOUND, usually well`);
+console.log(`             above real cost — API-heavy loops are charged a flat 10 steps`);
+console.log(`             per call × ${loopCap}, so Max overstates loops that really run fewer times.`);
+console.log('');
+
+const allRows = [...result.methods, ...result.handlers, ...(result.postLoop ? [result.postLoop] : [])];
 const warns = [];
 if (result.recursionDetected) warns.push('Recursion detected — recursive calls counted as 0; MAX is a lower bound.');
-if ([...result.methods, ...result.handlers].some((r) => r.capHit)) warns.push(`Loop-cap reached — MAX assumes ≤ ${loopCap} iterations; raise --loop-cap if a loop can run longer.`);
-if ([...result.methods, ...result.handlers].some((r) => r.variableApi)) warns.push('Asset issue/mint/distribute on a path — real cost exceeds the 10-step API floor and is partly data-dependent; MAX is a lower bound.');
-if ([...result.methods, ...result.handlers].some((r) => r.suspend)) warns.push('sleep/stop inside a handler — cost shown is for one activation only.');
+if (allRows.some((r) => r.capHit)) warns.push(`Loop-cap reached — MAX assumes ≤ ${loopCap} iterations; raise --loop-cap if a loop can run longer.`);
+if (allRows.some((r) => r.variableApi)) warns.push('Asset issue/mint/distribute on a path — real cost exceeds the 10-step API floor and is partly data-dependent; MAX is a lower bound.');
+if (allRows.some((r) => r.suspend)) warns.push('sleep/stop inside a handler — cost shown is for one activation only.');
 if (warns.length) {
     console.log('─── Warnings ─────────────────────────────────────────');
     warns.forEach((w) => console.log(`  ⚠️  ${w}`));
@@ -126,10 +150,32 @@ const costed = result.methods.length ? result.methods : result.handlers;
 if (costed.length) {
     const worst = costed.reduce((a, b) => (b.maxSigna > a.maxSigna ? b : a));
     const worstName = worst.handler ?? worst.name ?? `code ${worst.code}`;
+    const postMax = result.postLoop ? result.postLoop.maxSigna : 0;
+    const postOne = result.postLoop ? (result.postLoop.oneRunSigna ?? result.postLoop.minSigna) : 0;
+    const worstOne = worst.oneRunSigna ?? worst.minSigna;
+    const perActMax = +(worst.maxSigna + postMax).toFixed(4);
+    const perActOne = +(worstOne + postOne).toFixed(4);
+    const HIGH = 5, CEILING = 100;
     console.log('─── Activation guidance ──────────────────────────────');
-    console.log(`  Most expensive path: ${worstName} — up to ${worst.maxSigna} SIGNA per invocation.`);
-    console.log(`  activationAmount must cover this worst-case path (plus a safety margin and`);
-    console.log(`  the fixed getNextTx loop-header overhead, which is excluded above).`);
+    console.log(`  Each incoming tx is its own single run through the tx loop and carries its`);
+    console.log(`  own activation amount — costs are NEVER summed across transactions.`);
+    console.log(`  Worst path: ${worstName}${result.postLoop ? ' + post-loop' : ''}`);
+    console.log(`    typical (1×loop):  ${perActOne} SIGNA`);
+    console.log(`    upper bound (Max): ${perActMax} SIGNA`);
+    console.log(`  → Size activationAmount off the upper bound: ~${+(perActMax * 1.2).toFixed(4)} SIGNA`);
+    console.log(`    (${perActMax} × 1.2 margin), plus the getNextTx header. If real loop counts are`);
+    console.log(`    known to stay low, the true cost is nearer the ${perActOne} SIGNA typical figure.`);
+    if (perActMax > CEILING) {
+        console.log('');
+        console.log(`  ⚠️  Max ${perActMax} SIGNA exceeds the ${CEILING} SIGNA / 100,000-step hard ceiling`);
+        console.log(`      per activation — if a run actually hits it the AT VM stops mid-execution.`);
+        console.log(`      Confirm real loop bounds; reduce work per activation or defer via sleep.`);
+    } else if (perActMax > HIGH) {
+        console.log('');
+        console.log(`  ⚠️  ${perActMax} SIGNA (upper bound) is high for a single activation — most`);
+        console.log(`      contracts sit well under ${HIGH} SIGNA. This is likely the --loop-cap`);
+        console.log(`      worst case; verify against testbed runs before committing to it.`);
+    }
     console.log('');
 }
 

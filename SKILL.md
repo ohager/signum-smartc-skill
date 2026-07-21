@@ -281,12 +281,35 @@ Signa) of every handler by building a control-flow graph from the compiled AT as
 Core logic lives in `lib/gas/analyzer.js` (unit-tested in `tests/gas-analysis.test.ts`).
 
 > **Run this by default when building.** After compiling a new or changed contract,
-> run the analyzer, take the highest per-method **Max SIGNA**, and set
-> `#program activationAmount` to `worst-case max × 1.1–1.2` (safety margin). Never ship
+> run the analyzer, take the **worst tx handler Max SIGNA + the post-loop Max SIGNA**
+> (the analyzer prints this sum under *Activation guidance*), and set
+> `#program activationAmount` to `that sum × 1.1–1.2` (safety margin). Never ship
 > the template's placeholder activation amount. Report the worst-case cost and the
 > chosen activation amount to the user, and raise any warnings it emits (see below) —
 > especially **recursion**, which on AT can overflow the code stack and send the
 > contract to the **Dead** state (balance forfeited).
+
+> **The figures are static ESTIMATES, not measured runs — say so to the user.**
+> Each row shows three numbers: **Min** (loops skipped), **1×loop** (each
+> data-dependent loop runs once — the realistic, near-empirical figure), and
+> **Max** (every loop runs the full `--loop-cap`, default 10, on the worst branch —
+> a conservative upper bound). Because every API call inside a loop is charged a
+> flat 10 steps × the cap, **Max routinely overstates** loops that really run only
+> a few times, and will read far higher than TDD/testbed measurements. Size
+> `activationAmount` off Max (safe), but report the 1×loop figure as the expected
+> cost and always frame both as estimates to validate against the testbed. A Max
+> above ~**5 SIGNA** per activation is unusually high — flag it and re-check loop
+> bounds rather than blindly shipping a large activation amount.
+
+> **No multi-tx activation — never sum across transactions.** Each incoming
+> transaction is its own single run through the `getNextTx()` loop and carries its
+> own `activationAmount`. The loop body executes once per transaction, funded by
+> that transaction's own fee — costs are **never** multiplied by, or summed over,
+> the number of queued transactions. So `activationAmount` is sized to a **single**
+> transaction's path, not to N of them. The only per-activation addition is the
+> **post-loop** code (the trailing statements in `main()` after the `while` loop),
+> which runs once after the queue drains; the analyzer reports it separately and
+> the worst-case activation is `worst single-tx handler + post-loop`.
 
 ```bash
 bun scripts/gas-analysis.js MyContract.smart.c
@@ -294,8 +317,14 @@ bun scripts/gas-analysis.js MyContract.smart.c --loop-cap 20   # bound inner loo
 bun scripts/gas-analysis.js MyContract.smart.c --json          # emit .gas.json
 ```
 
-Prints a **per-method table** (method code → handler, `dispatch + handler = full
-per-invocation cost`) plus per-handler bodies, each with min/max steps and Signa.
+Prints a **per-method table** — each method code → handler, with the full
+per-invocation cost (`per-tx preamble + dispatch + handler`) as **Min / 1×loop /
+Max** SIGNA (see the estimate note above). The preamble is the guaranteed per-tx
+overhead to reach a handler (getSender, readMessage, guards, `receiveAssets`, the
+compare chain). Below it: per-handler bodies, and a **Post-loop** row for `main()`'s
+trailing per-activation effects. A *How to read these numbers* block explains the
+three columns, and the *Activation guidance* footer gives both the typical (1×loop)
+and upper-bound (Max) per-activation cost and the recommended `activationAmount`.
 
 **Fee model** (verified against signum-node `src/brs/at/AtMachineProcessor.getNumSteps`
 + `AtConstants`, AT v3): `0.001 Signa/step`; ordinary opcode = **1 step**; every API
@@ -309,16 +338,23 @@ activation** — the VM stops before exceeding it.
   bounded loop.
 - **Loop-cap reached** — a data-dependent loop could run more than `--loop-cap` times;
   the true worst case may be higher. Re-run with a larger cap or add an on-chain bound.
+  Conversely, if the loop really runs fewer times, Max *overstates* — lean on the
+  1×loop column and testbed measurements for the expected cost.
 - **`sleep`/`stop` mid-handler** — the handler spans multiple activations; the figure
   is for one activation only.
 - **Asset ops** (`issueAsset`/`distributeToHolders`) — real cost exceeds the 10-step
   API floor and scales with holder count.
 
 **Scope & caveats:**
-- The outer `getNextTx()` loop is ignored — cost is reported per invocation (one tx).
-- Data-dependent inner loops are bounded to `--loop-cap` iterations for MAX.
+- The outer `getNextTx()` loop is not multiplied — cost is per invocation (one tx),
+  because there is no multi-tx activation (see the note above). The loop is detected
+  by anchoring on the getNextTx API call, so it works whether or not `main()` has
+  post-loop code; post-loop cost is reported as its own row.
+- Data-dependent inner loops are bounded to `--loop-cap` iterations for MAX. A very
+  large `--loop-cap` over deeply nested loops is capped by a recursion-depth guard
+  (flagged as loop-cap reached) rather than overflowing — MAX becomes a lower bound.
 - Relies on the pinned compiler's label conventions (`__fn_`, `__switch`, backward
-  edge = loop).
+  edge = loop, `A_to_Tx_after_Timestamp` = getNextTx).
 
 Use it to size `#program activationAmount` to the worst-case path.
 
