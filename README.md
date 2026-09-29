@@ -64,6 +64,24 @@ from there. Then **restart Claude Code**.
    bun add signum-smartc-testbed smartc-signum-compiler -D
    ```
 
+### Updating
+
+```bash
+bash ~/signum-smartc-skill/scripts/update.sh
+```
+
+Pulls the latest release, prints the changelog entries since your version and
+refreshes the compiler dependency. Then restart Claude Code. The installed
+version is in `VERSION`; installs from before 1.0.0 need one manual
+`git pull` in the checkout to get the update script.
+
+### Versioning
+
+Releases follow [Semantic Versioning](https://semver.org/) and are tagged
+`vX.Y.Z`; see `CHANGELOG.md`. Each release documents one compiler line
+(currently **smartc-signum-compiler 2.3.x**), and the installer pins the
+compiler to it.
+
 ---
 
 ## Usage
@@ -96,6 +114,8 @@ CIYAM AT, `.smart.c` files, or related terms. You can also trigger it explicitly
 | `references/testing.md` | Test suite setup, SimulatorTestbed API, assertion patterns |
 | `scripts/compile.js` | Local compile script (Bun runtime) |
 | `scripts/install.sh` | Installer — links the skill, installs Bun and compiler |
+| `scripts/update.sh` | Updater — pulls the latest release, shows what changed |
+| `VERSION` / `CHANGELOG.md` | Installed version and release history |
 
 ---
 

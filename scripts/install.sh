@@ -5,10 +5,14 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_NAME="signum-smartc"
 SKILLS_DIR="${HOME}/.claude/skills"
 SKILL_LINK="${SKILLS_DIR}/${SKILL_NAME}"
+SKILL_VERSION="$(cat "${SKILL_DIR}/VERSION" 2>/dev/null || echo unknown)"
+# The compiler release the references document; see "Documents" in SKILL.md.
+COMPILER_RANGE="~2.3.0"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║  signum-smartc skill — installer                     ║"
+printf "║  %-52s║\n" "version ${SKILL_VERSION}"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 
@@ -41,9 +45,9 @@ fi
 
 # ── 3. smartc-signum-compiler ─────────────────────────────────────────────────
 
-echo "→  Installing smartc-signum-compiler..."
+echo "→  Installing smartc-signum-compiler@${COMPILER_RANGE}..."
 cd "${SKILL_DIR}"
-bun add smartc-signum-compiler
+bun add "smartc-signum-compiler@${COMPILER_RANGE}"
 echo "✓  smartc-signum-compiler installed"
 
 # ── 4. vitest (dev — runs the gas-analyzer tests) ─────────────────────────────
@@ -69,4 +73,7 @@ echo "    bun ${SKILL_DIR}/scripts/gas-analysis.js <contract.smart.c>"
 echo ""
 echo "  Run the skill's own tests:"
 echo "    bun vitest run"
+echo ""
+echo "  Update to the latest version later:"
+echo "    bash ${SKILL_DIR}/scripts/update.sh"
 echo ""

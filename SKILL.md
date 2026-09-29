@@ -24,6 +24,10 @@ bytecode VM on the Signum blockchain (formerly Burstcoin). Execution is charged 
 API call costs **10 steps** (0.01 Signa). Minimising API calls is therefore the biggest
 gas lever, and gas efficiency is a first-class concern.
 
+> **Documents smartc-signum-compiler 2.3.x.** If a contract pins a different
+> `#pragma version`, check the official SmartC docs for changes before relying
+> on these references. Skill version: `VERSION`; history: `CHANGELOG.md`.
+
 ## Quick Reference Index
 
 - **Language essentials** → `references/language.md`
