@@ -46,6 +46,12 @@ cd "${SKILL_DIR}"
 bun add smartc-signum-compiler
 echo "✓  smartc-signum-compiler installed"
 
+# ── 4. vitest (dev — runs the gas-analyzer tests) ─────────────────────────────
+
+echo "→  Installing vitest (dev)..."
+bun add -d vitest
+echo "✓  vitest installed"
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -57,4 +63,10 @@ echo "  Restart Claude Code to activate the skill."
 echo ""
 echo "  Compile a contract:"
 echo "    bun ${SKILL_DIR}/scripts/compile.js <contract.smart.c>"
+echo ""
+echo "  Analyse gas cost (per-handler min/max, activation sizing):"
+echo "    bun ${SKILL_DIR}/scripts/gas-analysis.js <contract.smart.c>"
+echo ""
+echo "  Run the skill's own tests:"
+echo "    bun vitest run"
 echo ""

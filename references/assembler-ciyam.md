@@ -25,7 +25,7 @@ The CIYAM AT virtual machine is a 64-bit stack machine with:
 | **Register A** | 256-bit (4 × long: A1..A4) general pseudo-register |
 | **Register B** | 256-bit (4 × long: B1..B4) general pseudo-register |
 | **PC** | Program counter |
-| **Step fee** | 0.001 Signa per executed instruction |
+| **Step fee** | 0.001 Signa per step — ordinary opcode = 1 step; every `EXT_FUN*` API call = 10 steps (0.01 Signa) |
 
 ---
 
@@ -316,5 +316,6 @@ These are the 16-bit function IDs used in `EXT_FUN*` opcodes:
 
 ---
 
-For gas optimisation guidance and instruction-counting techniques, see the
-**Gas Optimization** section of `language.md`.
+For gas optimisation guidance and step-counting techniques, see the **Gas
+Optimization** section of `language.md`, or run `scripts/gas-analysis.js` to compute
+per-handler min/max cost automatically (it charges each `EXT_FUN*` API call at 10 steps).
