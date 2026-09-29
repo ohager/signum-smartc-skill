@@ -551,12 +551,17 @@ conservatively above the true worst case.
 For AT-level opcodes not exposed by high-level API:
 
 ```c
+long myVar, result;
 asm {
-    // Raw AT assembly — see api-lowlevel.md for opcode list
-    SET_VAL @myVar, #100
-    ADD_DAT @result, @myVar
+    SET @myVar #0000000000000064
+    ADD @result $myVar
 }
 ```
+
+`@var` is the destination, `$var` a source value, and `#` literals take all
+16 hex digits (`#64` does not assemble). Operands are separated by spaces, not
+commas. See `assembler-ciyam.md` for the opcodes; for API calls from C, use
+`api-lowlevel.md` instead of `FUN` in assembly.
 
 Use sparingly. Prefer high-level API functions.  
 Variables referenced in `asm` blocks must be declared in C scope.
