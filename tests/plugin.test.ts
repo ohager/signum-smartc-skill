@@ -33,3 +33,20 @@ describe('plugin manifests', () => {
         expect(json('.mcp.json').mcpServers['smartc-studio']).toEqual({ command: 'npx', args: ['-y', '@smartc-studio/mcp'] });
     });
 });
+
+// The text from a heading to the next heading of the same level.
+const sectionOf = (md: string, heading: string) => {
+    const start = md.indexOf(`${heading}\n`);
+    if (start < 0) return '';
+    const end = md.indexOf('\n## ', start + heading.length);
+    return md.slice(start, end < 0 ? undefined : end);
+};
+
+describe('SKILL.md', () => {
+    it('sends the agent to the Studio tools when the Studio is connected', () => {
+        const section = sectionOf(read('SKILL.md'), '## SmartC Studio connected?');
+        for (const tool of ['compile', 'lint', 'analyze_gas', 'run_tests']) expect(section).toContain(`\`${tool}\``);
+        expect(section).toContain('/<project>/<file>');
+        expect(section).toContain('scripts/install.sh');
+    });
+});
