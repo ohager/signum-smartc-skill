@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "smartc-studio": {
+      "command": "npx",
+      "args": ["-y", "@smartc-studio/mcp"]
+    }
+  }
+}
