@@ -7,6 +7,18 @@ tools, patch for corrections.
 
 Update an installed skill with `bash scripts/update.sh`.
 
+## [1.1.0] - 2026-11-27
+
+### Added
+- Claude Code plugin and marketplace: `claude plugin install signum-smartc
+  --marketplace ohager/signum-smartc-skill` installs the skill together with the
+  SmartC Studio relay (`@smartc-studio/mcp`); `/plugin` updates both.
+- `SKILL.md`: § SmartC Studio connected? When the Studio's MCP tools are available,
+  the agent works on the Studio's files and uses its `compile`, `lint`,
+  `analyze_gas` and `run_tests` instead of the local scripts.
+- README: install routes for the plugin, the skills CLI (any agent) and the
+  local scripts, and a Windows note for npx-based MCP servers (`cmd /c`).
+
 ## [1.0.0] - 2026-09-29
 
 First versioned release. Documents **smartc-signum-compiler 2.3.x**.

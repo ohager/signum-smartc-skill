@@ -1,0 +1,12 @@
+{
+  "name": "signum",
+  "owner": { "name": "ohager" },
+  "description": "Signum smart contract tooling for Claude Code.",
+  "plugins": [
+    {
+      "name": "signum-smartc",
+      "source": "./",
+      "description": "The signum-smartc skill plus the SmartC Studio relay."
+    }
+  ]
+}

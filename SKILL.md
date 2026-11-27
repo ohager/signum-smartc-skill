@@ -28,8 +28,30 @@ gas lever, and gas efficiency is a first-class concern.
 > `#pragma version`, check the official SmartC docs for changes before relying
 > on these references. Skill version: `VERSION`; history: `CHANGELOG.md`.
 
+## SmartC Studio connected?
+
+Check this first. If tools named `compile`, `lint`, `analyze_gas` and `run_tests` from
+the `smartc-studio` MCP server are available (under whatever prefix your agent gives
+them, e.g. `mcp__smartc-studio__compile`), the user works in
+[SmartC Studio](https://smartc-studio.signum-network.dev) and the contracts live in the
+Studio's workspace, not on disk:
+
+- Address files as `/<project>/<file>`, exactly as `list_projects` and `list_files`
+  return them, and read and change them with the Studio's file tools.
+- Compile, lint, analyse gas and run tests with the Studio's tools, **never** with
+  `scripts/*.js`. Loop `compile` → `lint` → `analyze_gas` → `run_tests` until all are
+  clean, and judge by their real results.
+- Size `activationAmount` from `analyze_gas` the same way as described under
+  § Gas Analysis Script below.
+- Deployment, wallets and networks stay the user's: point them to the Studio's deploy page.
+
+Everything else in this skill (language, API, patterns, testing, checklist) applies
+unchanged. The local scripts are for contracts on disk; they need `scripts/install.sh`
+to have run once, which installs Bun and the compiler.
+
 ## Quick Reference Index
 
+- **Studio connected?** → use its tools, see § SmartC Studio connected?
 - **Language essentials** → `references/language.md`
 - **High-level API (built-in C functions, KKV maps)** → `references/api-highlevel.md`
 - **Low-level C API (`#include APIFunctions`)** → `references/api-lowlevel.md`
@@ -265,7 +287,8 @@ When reviewing or auditing a SmartC contract:
 ## Compile Script
 
 `scripts/compile.js` — Bun runtime, uses `smartc-signum-compiler` npm package.
-Run `scripts/install.sh` once to install Bun and the compiler.
+Run `scripts/install.sh` once to install Bun and the compiler. With SmartC Studio
+connected, use its `compile` tool instead (§ SmartC Studio connected?).
 
 ```bash
 bun scripts/compile.js MyContract.smart.c
