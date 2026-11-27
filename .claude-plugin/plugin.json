@@ -1,6 +1,6 @@
 {
   "name": "signum-smartc",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Write, test and review Signum SmartC smart contracts: the signum-smartc skill plus the SmartC Studio relay, so the agent can compile, lint, analyse gas and run tests in SmartC Studio.",
   "author": { "name": "ohager" },
   "homepage": "https://github.com/ohager/signum-smartc-skill",

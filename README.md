@@ -1,8 +1,11 @@
-# signum-smartc — Claude Code Skill
+# signum-smartc — Agent Skill for SmartC
 
-A Claude Code skill for writing, reviewing, compiling, and testing
+A skill for writing, reviewing, compiling, and testing
 **Signum blockchain Smart Contracts** using the
-[SmartC](https://github.com/deleterium/SmartC) C-dialect compiler.
+[SmartC](https://github.com/deleterium/SmartC) C-dialect compiler. It works with
+Claude Code, Codex and other agents that read Agent Skills (`SKILL.md`), and pairs
+with [SmartC Studio](https://smartc-studio.signum-network.dev), where the agent can
+compile, lint, analyse gas and run tests for you.
 
 ---
 
@@ -28,9 +31,46 @@ When active, this skill gives Claude deep context about:
 
 ## Installation
 
-This skill requires [Claude Code](https://claude.ai/code).
+### Claude Code plugin (recommended)
 
-### Quick install (one-liner)
+One command installs the skill together with the
+[SmartC Studio relay](https://www.npmjs.com/package/@smartc-studio/mcp), the MCP
+server that lets Claude work in SmartC Studio:
+
+```bash
+claude plugin install signum-smartc --marketplace ohager/signum-smartc-skill
+```
+
+Then **restart Claude Code**. The skill is available as `signum-smartc:signum-smartc`,
+and `/plugin` keeps both up to date.
+
+- On Claude Code older than 2.1.275, add the marketplace first:
+  `claude plugin marketplace add ohager/signum-smartc-skill`, then
+  `claude plugin install signum-smartc@signum`.
+- Registered the relay by hand before (`claude mcp add … smartc-studio`)? Claude Code
+  keeps using that entry and skips the plugin's copy, so nothing runs twice.
+- The plugin's relay uses the defaults: port 6890 and the hosted Studio. For another
+  port or a self-hosted Studio, register the relay by hand as the Studio's Connect
+  dialog shows, and install only the skill (next section).
+- Already installed the skill with `npx skills` or `install.sh`? Remove that copy, or
+  Claude sees the skill twice.
+
+### Any agent (Claude Code, Codex, …)
+
+```bash
+npx skills add ohager/signum-smartc-skill -g
+```
+
+Installs the skill globally into every agent the
+[skills CLI](https://github.com/vercel-labs/skills) finds. Restart the agent. To let
+it work in SmartC Studio, also register the relay; the Studio's Connect dialog shows
+the command for your agent.
+
+### Local scripts (clone + installer)
+
+Needed only for the local scripts (`scripts/compile.js`, `scripts/gas-analysis.js`)
+on contracts on disk. With SmartC Studio connected, the agent uses the Studio's
+tools instead.
 
 ```bash
 git clone https://github.com/ohager/signum-smartc-skill.git ~/signum-smartc-skill && bash ~/signum-smartc-skill/scripts/install.sh
@@ -40,7 +80,7 @@ This clones the repo to `~/signum-smartc-skill` and runs the installer. The
 checkout must stay in place — the skill is symlinked into `~/.claude/skills`
 from there. Then **restart Claude Code**.
 
-### Step by step
+#### Step by step
 
 1. **Clone** this repository anywhere on your machine:
    ```bash
@@ -64,16 +104,33 @@ from there. Then **restart Claude Code**.
    bun add signum-smartc-testbed smartc-signum-compiler -D
    ```
 
-### Updating
+### Windows
+
+On native Windows (not WSL), agents cannot start `npx` directly as an MCP server;
+wrap it in `cmd /c`:
 
 ```bash
-bash ~/signum-smartc-skill/scripts/update.sh
+claude mcp add --scope user smartc-studio -- cmd /c npx -y @smartc-studio/mcp
+codex mcp add smartc-studio -- cmd /c npx -y @smartc-studio/mcp
 ```
 
-Pulls the latest release, prints the changelog entries since your version and
-refreshes the compiler dependency. Then restart Claude Code. The installed
-version is in `VERSION`; installs from before 1.0.0 need one manual
-`git pull` in the checkout to get the update script.
+If the plugin's relay does not start on Windows, disable the plugin's server in
+`/mcp` and register it this way; the plugin's skill keeps working.
+
+### Updating
+
+- **Plugin:** `/plugin` in Claude Code, or `claude plugin update signum-smartc@signum`.
+- **skills CLI:** run `npx skills add ohager/signum-smartc-skill -g` again.
+- **Clone + installer:**
+
+  ```bash
+  bash ~/signum-smartc-skill/scripts/update.sh
+  ```
+
+  Pulls the latest release, prints the changelog entries since your version and
+  refreshes the compiler dependency. Then restart Claude Code. The installed
+  version is in `VERSION`; installs from before 1.0.0 need one manual
+  `git pull` in the checkout to get the update script.
 
 ### Versioning
 
@@ -116,6 +173,7 @@ CIYAM AT, `.smart.c` files, or related terms. You can also trigger it explicitly
 | `scripts/install.sh` | Installer — links the skill, installs Bun and compiler |
 | `scripts/update.sh` | Updater — pulls the latest release, shows what changed |
 | `VERSION` / `CHANGELOG.md` | Installed version and release history |
+| `.claude-plugin/` / `.mcp.json` | Claude Code plugin and marketplace manifests, the plugin's SmartC Studio relay |
 
 ---
 
