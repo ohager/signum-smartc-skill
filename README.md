@@ -47,8 +47,12 @@ and `/plugin` keeps both up to date.
 - On Claude Code older than 2.1.275, add the marketplace first:
   `claude plugin marketplace add ohager/signum-smartc-skill`, then
   `claude plugin install signum-smartc@signum`.
-- Registered the relay by hand before (`claude mcp add … smartc-studio`)? Claude Code
-  keeps using that entry and skips the plugin's copy, so nothing runs twice.
+- Registered the relay by hand before with the default command
+  (`claude mcp add --scope user smartc-studio -- npx -y @smartc-studio/mcp`)? Claude
+  Code keeps that entry and skips the plugin's identical copy. A hand-registered relay
+  with other arguments (`--port`, `--allow-origin`, `--dev`, `cmd /c`) is not identical:
+  remove it first (`claude mcp remove smartc-studio --scope user`), or the agent sees
+  two relays.
 - The plugin's relay uses the defaults: port 6890 and the hosted Studio. For another
   port or a self-hosted Studio, register the relay by hand as the Studio's Connect
   dialog shows, and install only the skill (next section).
@@ -172,6 +176,7 @@ CIYAM AT, `.smart.c` files, or related terms. You can also trigger it explicitly
 | `scripts/compile.js` | Local compile script (Bun runtime) |
 | `scripts/install.sh` | Installer — links the skill, installs Bun and compiler |
 | `scripts/update.sh` | Updater — pulls the latest release, shows what changed |
+| `scripts/link-skill.sh` | Links the skill into `~/.claude/skills` (skipped for a plugin install) |
 | `VERSION` / `CHANGELOG.md` | Installed version and release history |
 | `.claude-plugin/` / `.mcp.json` | Claude Code plugin and marketplace manifests, the plugin's SmartC Studio relay |
 

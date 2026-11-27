@@ -2,9 +2,6 @@
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKILL_NAME="signum-smartc"
-SKILLS_DIR="${HOME}/.claude/skills"
-SKILL_LINK="${SKILLS_DIR}/${SKILL_NAME}"
 SKILL_VERSION="$(cat "${SKILL_DIR}/VERSION" 2>/dev/null || echo unknown)"
 # The compiler release the references document; see "Documents" in SKILL.md.
 COMPILER_RANGE="~2.3.0"
@@ -18,19 +15,7 @@ echo ""
 
 # ── 1. Install skill into Claude Code ────────────────────────────────────────
 
-if [ ! -d "${SKILLS_DIR}" ]; then
-    mkdir -p "${SKILLS_DIR}"
-    echo "✓  Created skills directory at ${SKILLS_DIR}"
-fi
-
-if [ -L "${SKILL_LINK}" ]; then
-    echo "✓  Skill already linked at ${SKILL_LINK}"
-elif [ -d "${SKILL_LINK}" ]; then
-    echo "✓  Skill already installed at ${SKILL_LINK}"
-else
-    ln -s "${SKILL_DIR}" "${SKILL_LINK}"
-    echo "✓  Skill linked: ${SKILL_LINK} → ${SKILL_DIR}"
-fi
+bash "${SKILL_DIR}/scripts/link-skill.sh" "${SKILL_DIR}"
 
 # ── 2. Bun ────────────────────────────────────────────────────────────────────
 
